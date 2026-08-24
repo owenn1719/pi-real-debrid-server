@@ -1,6 +1,36 @@
-version: '3.8'
-
 services:
+  discover:
+    build:
+      context: .
+      dockerfile: Dockerfile.discover
+    image: pi-infuse-discover:local
+    container_name: discover
+    restart: unless-stopped
+    ports:
+      - 8090:8090
+    volumes:
+      - ./config.yml:/app/config.yml:ro
+      - ./test-catalog:/catalog
+    environment:
+      DISCOVER_ZURG_CONFIG: /app/config.yml
+      DISCOVER_COMET_URL: https://comet.feels.legal/
+      DISCOVER_HOST: 0.0.0.0
+      DISCOVER_PORT: 8090
+      TMDB_BEARER_TOKEN: ${TMDB_BEARER_TOKEN}
+      DISCOVER_CATALOG_PATH: /catalog
+      DISCOVER_PUBLIC_URL: ${DISCOVER_PUBLIC_URL:-http://192.168.4.58:8090}
+      DISCOVER_SYNC_INTERVAL_SECONDS: 43200
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/health', timeout=3).read()"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
   zurg:
     image: ghcr.io/debridmediamanager/zurg-testing:latest    
     container_name: zurg
@@ -46,6 +76,22 @@ services:
     command: >
       serve webdav /data
       --addr :8080
+      --user oarters
+      --pass ${WEBDAV_PASSWORD}
+      --dir-cache-time 5s
+      --poll-interval 0
+
+  discover-webdav:
+    image: rclone/rclone:latest
+    container_name: discover-webdav
+    restart: unless-stopped
+    ports:
+      - 8091:8091
+    volumes:
+      - ./test-catalog:/data:ro
+    command: >
+      serve webdav /data
+      --addr :8091
       --user oarters
       --pass ${WEBDAV_PASSWORD}
       --dir-cache-time 5s

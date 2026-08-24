@@ -1,0 +1,9 @@
+.git
+.env
+config.yml
+__pycache__
+*.py[cod]
+test-catalog
+tests
+scripts
+discover-data

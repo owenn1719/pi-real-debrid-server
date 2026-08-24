@@ -1,2 +1,5 @@
 .env
 config.yml
+__pycache__/
+*.py[cod]
+test-catalog/**/*.strm

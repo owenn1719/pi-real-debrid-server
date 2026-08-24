@@ -23,15 +23,24 @@ rclone FUSE mount -> /mnt/zurg
     |                    +--> Plex filesystem library
     |
     +--> rclone WebDAV :8080 -> Infuse
+
+TMDB -> Discover catalog -> WebDAV :8091 -> Infuse
+                             |
+                             +--> Discover resolver :8090
+                                      |
+                                      +--> Comet metadata
+                                      +--> Real-Debrid -> direct stream
 ```
 
-The Compose stack contains three containers:
+The Compose stack contains five containers:
 
 | Container | Purpose |
 | --- | --- |
 | `zurg` | Connects to Real-Debrid and exposes the configured media directories |
 | `rclone` | Mounts Zurg at `/mnt/zurg` using FUSE |
 | `webdav` | Publishes `/mnt/zurg` as standard WebDAV for Infuse |
+| `discover` | Generates movie selections and redirects Infuse to Real-Debrid |
+| `discover-webdav` | Publishes the generated Discover STRM catalog read-only |
 
 ## Quick Start
 
@@ -48,11 +57,16 @@ Create the local Zurg configuration and add your Real-Debrid API token:
 cp config.example.yml config.yml
 ```
 
-Create `.env` with the WebDAV password:
+Create `.env` with the WebDAV password, a TMDB API Read Access Token, and the
+LAN URL Infuse should use to reach Discover:
 
 ```dotenv
 WEBDAV_PASSWORD=choose-a-password
+TMDB_BEARER_TOKEN=your-tmdb-read-access-token
+DISCOVER_PUBLIC_URL=http://192.168.4.58:8090
 ```
+
+Replace the example address if the Raspberry Pi uses a different LAN IP.
 
 Create the host mount and start the stack:
 
@@ -101,6 +115,10 @@ Use a WebDAV connection with:
 The WebDAV mount is intentionally writable. Deleting an unwanted item from
 Infuse can delete it from the underlying Zurg/Real-Debrid library. Do not use
 Zurg's native `:9999/dav` endpoint for normal Infuse access.
+
+For the separate movie discovery catalog on port `8091`, including its module
+guide, configuration, selection rules, and operations, see
+[discover/README.md](discover/README.md).
 
 ## Useful Commands
 

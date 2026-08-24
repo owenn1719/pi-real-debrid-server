@@ -58,6 +58,9 @@ WebDAV password:
 
 /home/oarters/zurg-testing/.env
 
+The same `.env` file must define `TMDB_BEARER_TOKEN`. Set
+`DISCOVER_PUBLIC_URL` when the Pi does not use `http://192.168.4.58:8090`.
+
 Media mount:
 
 /mnt/zurg
@@ -68,7 +71,9 @@ Do not put the actual WebDAV password in this file.
 
 ## Docker containers
 
-There are three containers in the Compose stack.
+There are five containers in the Compose stack. The three core media-library
+containers are joined by the optional Discover resolver and its read-only
+catalog server.
 
 ### zurg
 
@@ -175,6 +180,24 @@ The .env file should not be committed to Git.
 Restart policy:
 
 unless-stopped
+
+---
+
+### discover
+
+The `discover` container runs the movie catalog resolver on port 8090. It uses
+TMDB metadata, a Comet-compatible provider, and the existing Real-Debrid token
+from the read-only `config.yml` mount. Set `TMDB_BEARER_TOKEN` in `.env`.
+
+### discover-webdav
+
+The `discover-webdav` container publishes `test-catalog` read-only on port
+8091. Add it to Infuse as a second WebDAV source using the same username and
+`WEBDAV_PASSWORD`. Unlike the main port 8080 library, this catalog cannot be
+modified through Infuse.
+
+See `discover/README.md` for the module guide, request flow, configuration, and
+Discover-specific troubleshooting commands.
 
 ---
 
@@ -327,7 +350,7 @@ docker logs -f --tail 20 zurg
 
 ## Automatic startup and weekly restart
 
-All three containers use:
+All five containers use:
 
 restart: unless-stopped
 
@@ -503,5 +526,5 @@ still present on port 9999 but should not be used by Infuse
 Weekly Monday 1 AM restart:
 preserved
 
-All three Docker containers:
+All five Docker containers:
 restart=unless-stopped
