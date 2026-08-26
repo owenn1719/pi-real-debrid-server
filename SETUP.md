@@ -185,9 +185,15 @@ unless-stopped
 
 ### discover
 
-The `discover` container runs the movie catalog resolver on port 8090. It uses
+The `discover` container runs the movie and TV catalog resolver on port 8090. It uses
 TMDB metadata, a Comet-compatible provider, and the existing Real-Debrid token
 from the read-only `config.yml` mount. Set `TMDB_BEARER_TOKEN` in `.env`.
+
+The TV catalog contains one `S01E01` STRM per show. Playing that discovery
+entry requires a cached torrent containing every currently aired regular
+Season 1 episode, selects those season files, and redirects only to the pilot.
+Continue watching through the main writable library after Zurg exposes the
+selected season. Discover never selects a pilot-only torrent.
 
 ### discover-webdav
 

@@ -3,12 +3,15 @@ import unittest
 from discover.app import DiscoverApplication, safe_attempt_category
 from discover.candidates import TorrentCandidate
 from discover.quality import ScoredCandidate
-from discover.selection import MovieIdentity, ResolvedMovie
+from discover.movie_selection import MovieIdentity, ResolvedMovie
+from discover.tmdb import TmdbEpisode
+from discover.tv_selection import EpisodeRequest, ResolvedEpisode, SeriesIdentity
 
 
 MOVIE = MovieIdentity(502356, "tt6718170", "Mario", 2023, "en")
 CANDIDATE = TorrentCandidate("Mario.2160p.ENG.REMUX.mkv", "a" * 40, "fixture")
 SCORED = ScoredCandidate(CANDIDATE, True, 900, "2160p", "remux", "english")
+SERIES = SeriesIdentity(95396, "tt11280740", "Severance", 2022, "en")
 
 
 class FakeResolver:
@@ -39,6 +42,32 @@ class FakeMovieLookup:
     def movie_identity(self, tmdb_id):
         self.calls += 1
         return MOVIE
+
+
+class FakeEpisodeResolver:
+    def resolve_existing(self, torrent_id, request):
+        return "https://rd.invalid/refreshed-pilot", "/S01E01.mkv", ("/S01E01.mkv",)
+
+
+class FakeEpisodeSelection:
+    def __init__(self):
+        self.resolver = FakeEpisodeResolver()
+        self.calls = 0
+
+    def resolve(self, request):
+        self.calls += 1
+        return ResolvedEpisode(
+            request, SCORED, "https://rd.invalid/pilot", "season-torrent",
+            "/S01E01.mkv", ("/S01E01.mkv",), (),
+        )
+
+
+class FakeSeriesLookup:
+    def series_identity(self, tmdb_id):
+        return SERIES
+
+    def season_episodes(self, tmdb_id, season_number):
+        return [TmdbEpisode(1, 1, "Good News About Hell", "2022-02-17")]
 
 
 class AppTests(unittest.TestCase):
@@ -75,6 +104,30 @@ class AppTests(unittest.TestCase):
         app.resolve_movie(MOVIE.tmdb_id)
         self.assertEqual(app.movies[MOVIE.tmdb_id], MOVIE)
         self.assertEqual(lookup.calls, 1)
+
+    def test_pilot_is_resolved_and_then_refreshed(self):
+        selection = FakeEpisodeSelection()
+        app = DiscoverApplication(
+            FakeSelection(),
+            episode_selection=selection,
+            series_lookup=FakeSeriesLookup(),
+        )
+        first = app.resolve_episode(SERIES.tmdb_id, 1, 1)
+        second = app.resolve_episode(SERIES.tmdb_id, 1, 1)
+        self.assertEqual(first.stream_url, "https://rd.invalid/pilot")
+        self.assertEqual(second.stream_url, "https://rd.invalid/refreshed-pilot")
+        self.assertEqual(selection.calls, 1)
+
+    def test_unaired_episode_is_rejected_before_selection(self):
+        selection = FakeEpisodeSelection()
+        app = DiscoverApplication(
+            FakeSelection(),
+            episode_selection=selection,
+            series_lookup=FakeSeriesLookup(),
+        )
+        with self.assertRaises(KeyError):
+            app.resolve_episode(SERIES.tmdb_id, 1, 2)
+        self.assertEqual(selection.calls, 0)
 
 
 if __name__ == "__main__":

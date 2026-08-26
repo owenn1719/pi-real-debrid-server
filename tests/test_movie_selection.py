@@ -2,7 +2,7 @@ import unittest
 
 from discover.candidates import TorrentCandidate
 from discover.real_debrid import RealDebridError
-from discover.selection import (
+from discover.movie_selection import (
     MovieIdentity,
     MovieSelectionService,
     NoCachedReleaseAvailable,

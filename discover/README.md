@@ -1,12 +1,9 @@
 # Discover Service
 
-Discover adds an Infuse-friendly movie catalog and on-demand Real-Debrid
+Discover adds Infuse-friendly movie and TV catalogs and an on-demand Real-Debrid
 resolver to this stack. It is a small, dependency-free Python service: the
 Raspberry Pi handles metadata and redirects, while Infuse streams video
 directly from Real-Debrid.
-
-The current implementation is movie-only. TV seasons and episodes are outside
-the alpha scope.
 
 ## Request flow
 
@@ -27,6 +24,12 @@ TMDB lists -> generated .strm catalog -> Infuse
                              HTTP 302 directly to media
 ```
 
+TV discovery uses one flat `S01E01` STRM entry per show. A pilot request asks
+the provider for that episode, but accepts only a cached torrent containing
+every regular Season 1 episode that TMDB reports as aired. The resolver selects
+those season files, redirects Infuse to the exact pilot, and leaves the season
+available through Zurg in the main library for continued viewing.
+
 The resolver requires the normalized release title followed by the exact TMDB
 release year before a candidate can reach Real-Debrid. It then rejects known
 bad sources and unsuitable audio, ranks the remaining releases, and tries them
@@ -45,25 +48,29 @@ pre-existing Real-Debrid torrents are never deleted.
 
 ### HTTP and orchestration
 
-- `discover/app.py` implements `/health` and
-  `GET|HEAD /play/movie/{tmdb_id}`. It caches movie identities and successful
+- `discover/app.py` implements `/health`, `GET|HEAD /play/movie/{tmdb_id}`, and
+  `GET|HEAD /play/series/{tmdb_id}/1/1`. It caches identities and successful
   selections in memory, serializes concurrent requests for the same TMDB ID,
   refreshes temporary Real-Debrid links, and returns safe HTTP errors and
   diagnostics.
-- `discover/selection.py` coordinates provider search, exact title/year
+- `discover/movie_selection.py` coordinates provider search, exact title/year
   validation, quality ranking, 2160p/1080p attempt ordering, the overall
   selection deadline, and structured attempt history. It returns the first
   acceptable release that Real-Debrid exposes immediately.
+- `discover/tv_selection.py` accepts Season 1 packs rather than pilot-only
+  releases, applies quality ranking, and tries candidates within the same
+  bounded selection budget.
 - `discover/candidates.py` defines the provider-neutral torrent candidate
   model shared by provider adapters and selection.
 
 ### Metadata and catalog
 
-- `discover/tmdb.py` calls TMDB for canonical movie identity (title, year,
-  language, and IMDb ID) and for curated catalog pages. It validates malformed
+- `discover/tmdb.py` calls TMDB for canonical movie and series identities,
+  curated catalog pages, and Season 1 episode metadata. It validates malformed
   or incomplete responses before they enter the resolver.
-- `discover/catalog.py` builds the managed `Discover/Discover Movies` STRM
-  tree from weekly trending and popular TMDB movies. It sanitizes filenames,
+- `discover/catalog.py` builds the managed `Discover/Discover Movies` and
+  `Discover/Discover TV Shows` STRM folders from weekly trending and popular
+  TMDB results. TV contains one pilot entry per show. It sanitizes filenames,
   deduplicates titles, and atomically swaps a completed staging tree into
   place. A background scheduler runs once at startup and then at the configured
   interval.
@@ -71,7 +78,7 @@ pre-existing Real-Debrid torrents are never deleted.
 ### Candidate discovery and quality
 
 - `discover/providers/__init__.py` marks the provider adapter package.
-- `discover/providers/stremio.py` reads a Comet-compatible Stremio movie stream
+- `discover/providers/stremio.py` reads Comet-compatible movie and series stream
   endpoint and normalizes hashes, filenames, sizes, file indexes, and cache
   hints into `TorrentCandidate` objects. The provider never receives the
   Real-Debrid token.
@@ -89,10 +96,14 @@ pre-existing Real-Debrid torrents are never deleted.
 - `discover/media.py` recognizes video files, excludes samples and trailers,
   chooses the largest feature file, matches selected files to restricted
   links, and validates generated HTTPS stream URLs.
-- `discover/resolver.py` reuses downloaded torrents already in Real-Debrid or
+- `discover/movie_resolver.py` reuses downloaded torrents already in Real-Debrid or
   creates a short-lived cached-only magnet probe. It selects the movie file,
   unrestricts its link, and removes only a probe it created when that probe is
   not immediately available.
+- `discover/tv_resolver.py` verifies that a candidate contains every aired
+  regular Season 1 episode, selects only those files, and maps the pilot to its
+  exact Real-Debrid link. Failed new probes are deleted; pre-existing torrents
+  are never modified or deleted.
 
 ## Runtime services
 
@@ -105,7 +116,9 @@ Current deployment defaults:
 - Resolver: `http://192.168.4.58:8090`
 - Catalog WebDAV: `http://192.168.4.58:8091`
 - Generated catalog: `test-catalog/Discover/Discover Movies`
-- Catalog size: up to 150 movies with at least 1,000 TMDB votes
+- Catalog size: up to 250 movies with at least 1,000 TMDB votes
+- Generated TV catalog: `test-catalog/Discover/Discover TV Shows`
+- TV catalog size: up to 50 shows with at least 1,000 TMDB votes
 - Catalog sync: startup and every 12 hours
 - Provider: `https://comet.feels.legal/`
 - Cached-probe grace period: 3 seconds
@@ -173,4 +186,3 @@ Real-Debrid URLs and credentials are intentionally excluded from logs.
 2. Version STRM routes so Infuse notices a replaced selection reliably.
 3. Prefer acceptable hashes already present in Real-Debrid before probing.
 4. Add an independent provider fallback.
-5. Add TV season and episode selection as a separate feature.

@@ -7,9 +7,11 @@ from .app import DiscoverApplication, serve
 from .catalog import CatalogSync, start_catalog_scheduler
 from .providers.stremio import StremioStreamProvider
 from .real_debrid import RealDebridClient, load_token
-from .resolver import MovieResolver
-from .selection import MovieSelectionService
+from .movie_resolver import MovieResolver
+from .movie_selection import MovieSelectionService
 from .tmdb import TmdbClient
+from .tv_resolver import EpisodeResolver
+from .tv_selection import EpisodeSelectionService
 
 
 def main() -> None:
@@ -26,24 +28,41 @@ def main() -> None:
     if not tmdb_token:
         raise RuntimeError("TMDB_BEARER_TOKEN is required")
 
+    rd_client = RealDebridClient(load_token(config_path))
     resolver = MovieResolver(
-        RealDebridClient(load_token(config_path)),
+        rd_client,
         cached_grace_seconds=3,
         poll_interval_seconds=0.5,
     )
+    provider = StremioStreamProvider(comet_url)
     selection = MovieSelectionService(
-        StremioStreamProvider(comet_url),
+        provider,
         resolver,
         max_candidates=max_candidates,
         total_budget_seconds=18,
     )
     tmdb = TmdbClient(tmdb_token)
+    episode_selection = EpisodeSelectionService(
+        provider,
+        EpisodeResolver(
+            rd_client,
+            cached_grace_seconds=3,
+            poll_interval_seconds=0.5,
+        ),
+        max_candidates=max_candidates,
+        total_budget_seconds=18,
+    )
     start_catalog_scheduler(
         CatalogSync(tmdb, catalog_path, public_base_url=public_url),
         sync_interval,
     )
     serve(
-        DiscoverApplication(selection, movie_lookup=tmdb),
+        DiscoverApplication(
+            selection,
+            movie_lookup=tmdb,
+            episode_selection=episode_selection,
+            series_lookup=tmdb,
+        ),
         host=host,
         port=port,
     )

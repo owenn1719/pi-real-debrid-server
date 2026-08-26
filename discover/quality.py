@@ -1,4 +1,4 @@
-"""Deterministic, movie-only release parsing and quality scoring."""
+"""Deterministic release parsing and quality scoring."""
 
 import re
 from dataclasses import dataclass, field
@@ -47,6 +47,13 @@ class MovieQualityProfile:
     trusted_groups: frozenset[str] = frozenset(
         {"cinephiles", "framestor", "flux", "ntb", "don", "ctrlhd"}
     )
+
+
+@dataclass(frozen=True, slots=True)
+class TvQualityProfile(MovieQualityProfile):
+    """Season-pack limits while retaining the validated movie quality rules."""
+
+    max_bytes: int = 800_000_000_000
 
 
 @dataclass(frozen=True, slots=True)

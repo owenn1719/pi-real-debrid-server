@@ -110,10 +110,8 @@ class StremioStreamProvider:
         self.base_url = base_url.rstrip("/") + "/"
         self.timeout_seconds = timeout_seconds
 
-    def search_movie(self, imdb_id: str) -> list[TorrentCandidate]:
-        if not re.fullmatch(r"tt\d+", imdb_id):
-            raise ValueError("IMDb ID must look like tt6718170")
-        endpoint = urljoin(self.base_url, f"stream/movie/{imdb_id}.json")
+    def _streams(self, path: str) -> list[TorrentCandidate]:
+        endpoint = urljoin(self.base_url, path)
         request = Request(endpoint, headers={"User-Agent": "pi-infuse-discover/0.1"})
         try:
             with urlopen(request, timeout=self.timeout_seconds) as response:
@@ -125,3 +123,17 @@ class StremioStreamProvider:
         except (URLError, json.JSONDecodeError) as error:
             raise StremioProviderError(f"provider request failed: {error}") from error
         return parse_streams(payload, self.base_url)
+
+    def search_movie(self, imdb_id: str) -> list[TorrentCandidate]:
+        if not re.fullmatch(r"tt\d+", imdb_id):
+            raise ValueError("IMDb ID must look like tt6718170")
+        return self._streams(f"stream/movie/{imdb_id}.json")
+
+    def search_episode(
+        self, imdb_id: str, season: int, episode: int
+    ) -> list[TorrentCandidate]:
+        if not re.fullmatch(r"tt\d+", imdb_id):
+            raise ValueError("IMDb ID must look like tt11280740")
+        if season <= 0 or episode <= 0:
+            raise ValueError("season and episode must be positive")
+        return self._streams(f"stream/series/{imdb_id}:{season}:{episode}.json")

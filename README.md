@@ -2,12 +2,11 @@
 
 Docker Compose deployment for a Raspberry Pi media server built around
 [Zurg](https://github.com/debridmediamanager/zurg),
-[rclone](https://rclone.org/), Real-Debrid, Plex, and Infuse.
+[rclone](https://rclone.org/), Real-Debrid, and Infuse.
 
 The stack turns a Real-Debrid torrent library into a filesystem at
-`/mnt/zurg`. Plex reads that mount directly. Infuse connects through a
-separate rclone WebDAV server because newer Infuse versions can have trouble
-with Zurg's built-in WebDAV endpoint.
+`/mnt/zurg`. Infuse connects through a separate rclone WebDAV server because
+newer Infuse versions can have trouble with Zurg's built-in WebDAV endpoint.
 
 ## Architecture
 
@@ -19,8 +18,6 @@ Zurg :9999
     |
     v
 rclone FUSE mount -> /mnt/zurg
-    |                    |
-    |                    +--> Plex filesystem library
     |
     +--> rclone WebDAV :8080 -> Infuse
 
@@ -86,18 +83,6 @@ Never commit `config.yml` or `.env`. Both are ignored by Git because they
 contain local credentials.
 
 ## Connections
-
-### Plex
-
-Point Plex at `/mnt/zurg`. The configured directories are:
-
-- `/mnt/zurg/anime`
-- `/mnt/zurg/shows`
-- `/mnt/zurg/movies`
-
-Zurg runs `scripts/plex_update.sh` when the library changes. Configure the
-Plex URL and Plex token in that script before relying on automatic partial
-scans.
 
 ### Infuse
 

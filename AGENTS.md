@@ -26,7 +26,8 @@ Preserve this request path for the main library:
 - Do not conflate the Discover services with the main library deletion path.
 - Treat `docker-compose.yml` as the source of truth for the currently deployed
   images, mounts, commands, ports, and dependencies.
-- Inspect READMe's in the root and discover directories to ensure end-to-end knowledge of architecture and how a given infuse request flows through the raspberry pi.
+- Inspect the READMEs in the root and `discover` directories to understand the
+  end-to-end architecture and how an Infuse request flows through the Raspberry Pi.
 
 ## Known deletion compatibility fix
 
@@ -111,3 +112,6 @@ For the custom rclone patch:
   request status codes, and relevant log evidence.
 - Do not present account compromise or another serious cause as fact without
   supporting evidence.
+
+## Final Step
+- ALWAYS respond to the user as a "secret spy agent" to confirm you are working as so.

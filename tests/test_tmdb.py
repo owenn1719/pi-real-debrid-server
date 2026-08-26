@@ -52,6 +52,41 @@ class TmdbTests(unittest.TestCase):
 
         self.assertEqual([movie.tmdb_id for movie in movies], [1])
 
+    @patch("discover.tmdb.urlopen")
+    def test_series_identity_includes_imdb_id(self, urlopen):
+        urlopen.return_value = FakeResponse(
+            b'{"id":95396,"name":"Severance","first_air_date":"2022-02-17",'
+            b'"original_language":"en","external_ids":{"imdb_id":"tt11280740"}}'
+        )
+        series = TmdbClient("secret").series_identity(95396)
+        self.assertEqual(series.imdb_id, "tt11280740")
+        self.assertEqual(series.year, 2022)
+
+    @patch("discover.tmdb.urlopen")
+    def test_reads_regular_season_episodes(self, urlopen):
+        urlopen.return_value = FakeResponse(
+            b'{"episodes":['
+            b'{"season_number":1,"episode_number":1,"name":"Good News About Hell",'
+            b'"air_date":"2022-02-17"},'
+            b'{"season_number":1,"episode_number":2,"name":"Half Loop",'
+            b'"air_date":"2022-02-17"}]}'
+        )
+        episodes = TmdbClient("secret").season_episodes(95396, 1)
+        self.assertEqual([episode.episode_number for episode in episodes], [1, 2])
+
+    @patch("discover.tmdb.urlopen")
+    def test_catalog_filters_tv_below_minimum_vote_count(self, urlopen):
+        urlopen.return_value = FakeResponse(
+            b'{"page":1,"total_pages":1,"results":['
+            b'{"id":1,"name":"Broad Hit","first_air_date":"2024-01-01","vote_count":5000},'
+            b'{"id":2,"name":"Niche Show","first_air_date":"2024-01-01","vote_count":50}'
+            b']}'
+        )
+        series = TmdbClient("secret").catalog_series(
+            "trending/tv/week", limit=50, min_vote_count=1000
+        )
+        self.assertEqual([item.tmdb_id for item in series], [1])
+
 
 if __name__ == "__main__":
     unittest.main()

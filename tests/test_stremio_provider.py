@@ -1,6 +1,8 @@
 import unittest
+from unittest.mock import patch
+import io
 
-from discover.providers.stremio import parse_streams
+from discover.providers.stremio import StremioStreamProvider, parse_streams
 
 
 class StremioProviderTests(unittest.TestCase):
@@ -42,6 +44,21 @@ class StremioProviderTests(unittest.TestCase):
             "0123456789abcdef0123456789abcdef01234567",
         )
         self.assertEqual(candidate.size_bytes, 8_500_000_000)
+
+    @patch("discover.providers.stremio.urlopen")
+    def test_requests_standard_series_episode_identifier(self, urlopen) -> None:
+        response = io.BytesIO(b'{"streams":[]}')
+        response.__enter__ = lambda item: item
+        response.__exit__ = lambda item, *args: item.close()
+        urlopen.return_value = response
+        StremioStreamProvider("https://comet.invalid/").search_episode(
+            "tt11280740", 1, 1
+        )
+        request = urlopen.call_args.args[0]
+        self.assertEqual(
+            request.full_url,
+            "https://comet.invalid/stream/series/tt11280740:1:1.json",
+        )
 
 
 if __name__ == "__main__":

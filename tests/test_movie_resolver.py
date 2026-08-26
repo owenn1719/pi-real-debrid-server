@@ -1,7 +1,7 @@
 import unittest
 
 from discover.real_debrid import RealDebridError
-from discover.resolver import MovieResolver
+from discover.movie_resolver import MovieResolver
 
 
 HASH = "a" * 40
