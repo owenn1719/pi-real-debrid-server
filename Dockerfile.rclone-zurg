@@ -1,0 +1,29 @@
+FROM golang:1.25-alpine3.22 AS builder
+
+RUN apk add --no-cache bash gawk git make
+
+WORKDIR /src
+
+RUN git clone https://github.com/rclone/rclone.git . \
+    && git checkout 37e4117f48bdef0fa1ba27f6467d7a891b0b55ba
+
+COPY patches/rclone-zurg-rmdir-501.patch /tmp/rclone-zurg-rmdir-501.patch
+
+RUN git apply --check /tmp/rclone-zurg-rmdir-501.patch \
+    && git apply /tmp/rclone-zurg-rmdir-501.patch \
+    && gofmt -w backend/webdav/webdav.go backend/webdav/webdav_internal_test.go \
+    && git diff --check
+
+RUN go test ./backend/webdav -run '^TestRmdir501IsMissing$'
+RUN make rclone
+
+FROM alpine:3.22
+
+RUN apk add --no-cache ca-certificates fuse3 tzdata \
+    && echo user_allow_other >> /etc/fuse.conf
+
+COPY --from=builder /src/rclone /usr/local/bin/rclone
+
+ENTRYPOINT ["rclone"]
+WORKDIR /data
+ENV XDG_CONFIG_HOME=/config

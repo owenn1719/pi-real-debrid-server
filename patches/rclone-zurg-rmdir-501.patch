@@ -1,0 +1,87 @@
+diff --git a/backend/webdav/webdav.go b/backend/webdav/webdav.go
+index eec9c9e..d625054 100644
+--- a/backend/webdav/webdav.go
++++ b/backend/webdav/webdav.go
+@@ -183,6 +183,15 @@ files from the webdav server then you can try this option.
+ `,
+ 				Advanced: true,
+ 				Default:  false,
++			}, {
++				Name: "rmdir_501_is_missing",
++				Help: `Treat HTTP 501 during the pre-Rmdir directory check as an already missing directory.
++
++This is a compatibility option for WebDAV servers which return 501 rather
++than 404 after a delete has already removed the directory. It affects only
++the existence check performed by Rmdir.`,
++				Advanced: true,
++				Default:  false,
+ 			}},
+ 	})
+ }
+@@ -203,6 +212,7 @@ type Options struct {
+ 	ExcludeMounts      bool                 `config:"owncloud_exclude_mounts"`
+ 	UnixSocket         string               `config:"unix_socket"`
+ 	AuthRedirect       bool                 `config:"auth_redirect"`
++	Rmdir501IsMissing  bool                 `config:"rmdir_501_is_missing"`
+ }
+ 
+ // Fs represents a remote webdav
+@@ -1095,6 +1105,11 @@ func (f *Fs) purgeCheck(ctx context.Context, dir string, check bool) error {
+ 	if check {
+ 		notEmpty, err := f.dirNotEmpty(ctx, dir)
+ 		if err != nil {
++			var apiErr *api.Error
++			if f.opt.Rmdir501IsMissing && errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotImplemented {
++				fs.Debugf(dir, "Treating HTTP 501 during Rmdir check as already missing")
++				return nil
++			}
+ 			return err
+ 		}
+ 		if notEmpty {
+diff --git a/backend/webdav/webdav_internal_test.go b/backend/webdav/webdav_internal_test.go
+index 2aa7acd..d6bf049 100644
+--- a/backend/webdav/webdav_internal_test.go
++++ b/backend/webdav/webdav_internal_test.go
+@@ -151,3 +151,41 @@ func TestReservedCharactersInPathAreEscaped(t *testing.T) {
+ 	assert.Contains(t, capturedPath, "my%3Btest", "semicolons in path should be percent-encoded")
+ 	assert.NotContains(t, capturedPath, "my;test", "raw semicolons should not appear in path")
+ }
++
++func TestRmdir501IsMissing(t *testing.T) {
++	for _, test := range []struct {
++		name    string
++		enabled string
++		wantErr bool
++	}{
++		{name: "disabled", enabled: "false", wantErr: true},
++		{name: "enabled", enabled: "true", wantErr: false},
++	} {
++		t.Run(test.name, func(t *testing.T) {
++			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++				if r.Method == "PROPFIND" {
++					w.WriteHeader(http.StatusNotImplemented)
++					return
++				}
++				w.WriteHeader(http.StatusNoContent)
++			}))
++			defer ts.Close()
++
++			configfile.Install()
++			m := configmap.Simple{
++				"type":                 "webdav",
++				"url":                  ts.URL,
++				"rmdir_501_is_missing": test.enabled,
++			}
++			f, err := webdav.NewFs(context.Background(), remoteName, "", m)
++			require.NoError(t, err)
++
++			err = f.Rmdir(context.Background(), "already-gone")
++			if test.wantErr {
++				require.Error(t, err)
++				assert.Contains(t, err.Error(), "501")
++			} else {
++				require.NoError(t, err)
++			}
++		})
++	}
++}

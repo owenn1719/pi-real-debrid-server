@@ -43,7 +43,10 @@ services:
       - zurgdata:/app/data
 
   rclone:
-    image: rclone/rclone:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.rclone-zurg
+    image: pi-rclone-zurg:1.74.3-rmdir501-1
     container_name: rclone
     restart: unless-stopped
     environment:
