@@ -24,7 +24,7 @@ rclone FUSE mount -> /mnt/zurg
     |
     +--> rclone WebDAV :8080 -> Infuse
 
-TMDB -> Discover catalog -> WebDAV :8091 -> Infuse
+TMDB -> movie and TV Discover catalog -> WebDAV :8091 -> Infuse
                              |
                              +--> Discover resolver :8090
                                       |
@@ -39,7 +39,7 @@ The Compose stack contains five containers:
 | `zurg` | Connects to Real-Debrid and exposes the configured media directories |
 | `rclone` | Mounts Zurg at `/mnt/zurg` using FUSE |
 | `webdav` | Publishes `/mnt/zurg` as standard WebDAV for Infuse |
-| `discover` | Generates movie selections and redirects Infuse to Real-Debrid |
+| `discover` | Generates movie/TV selections and redirects Infuse to Real-Debrid |
 | `discover-webdav` | Publishes the generated Discover STRM catalog read-only |
 
 ## Quick Start
@@ -116,7 +116,7 @@ The WebDAV mount is intentionally writable. Deleting an unwanted item from
 Infuse can delete it from the underlying Zurg/Real-Debrid library. Do not use
 Zurg's native `:9999/dav` endpoint for normal Infuse access.
 
-For the separate movie discovery catalog on port `8091`, including its module
+For the separate movie and TV discovery catalog on port `8091`, including its module
 guide, configuration, selection rules, and operations, see
 [discover/README.md](discover/README.md).
 

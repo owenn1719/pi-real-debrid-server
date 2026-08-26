@@ -10,8 +10,11 @@ from uuid import uuid4
 from .tmdb import TmdbClient, TmdbError
 
 
-CATALOGS = (
+MOVIE_CATALOGS = (
     ("Discover Movies", ("trending/movie/week", "movie/popular")),
+)
+TV_CATALOGS = (
+    ("Discover TV Shows", ("trending/tv/week", "tv/popular")),
 )
 INVALID_FILENAME = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
 
@@ -29,12 +32,14 @@ class CatalogSync:
         *,
         public_base_url: str = "http://192.168.4.58:8090",
         limit: int = 150,
+        tv_limit: int = 50,
         min_vote_count: int = 1_000,
     ) -> None:
         self.tmdb = tmdb
         self.catalog_root = catalog_root
         self.public_base_url = public_base_url.rstrip("/")
         self.limit = limit
+        self.tv_limit = tv_limit
         self.min_vote_count = min_vote_count
 
     def sync(self) -> dict[str, int]:
@@ -45,7 +50,7 @@ class CatalogSync:
         counts: dict[str, int] = {}
         try:
             staging.mkdir()
-            for folder_name, endpoints in CATALOGS:
+            for folder_name, endpoints in MOVIE_CATALOGS:
                 folder = staging / folder_name
                 folder.mkdir()
                 movies = []
@@ -76,6 +81,38 @@ class CatalogSync:
                         encoding="utf-8",
                     )
                 counts[folder_name] = len(movies)
+
+            for folder_name, endpoints in TV_CATALOGS:
+                folder = staging / folder_name
+                folder.mkdir()
+                series_items = []
+                seen_series: set[int] = set()
+                for endpoint in endpoints:
+                    source_series = self.tmdb.catalog_series(
+                        endpoint,
+                        limit=self.tv_limit,
+                        min_vote_count=self.min_vote_count,
+                    )
+                    for series in source_series:
+                        if series.tmdb_id in seen_series:
+                            continue
+                        seen_series.add(series.tmdb_id)
+                        series_items.append(series)
+                        if len(series_items) == self.tv_limit:
+                            break
+                    if len(series_items) == self.tv_limit:
+                        break
+                used_names: set[str] = set()
+                for series in series_items:
+                    stem = f"{safe_filename(series.title)} ({series.year}) - S01E01"
+                    if stem.casefold() in used_names:
+                        stem += f" [{series.tmdb_id}]"
+                    used_names.add(stem.casefold())
+                    (folder / f"{stem}.strm").write_text(
+                        f"{self.public_base_url}/play/series/{series.tmdb_id}/1/1\n",
+                        encoding="utf-8",
+                    )
+                counts[folder_name] = len(series_items)
 
             if target.exists():
                 target.rename(backup)
