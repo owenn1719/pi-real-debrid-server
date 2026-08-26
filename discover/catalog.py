@@ -28,7 +28,7 @@ class CatalogSync:
         catalog_root: Path,
         *,
         public_base_url: str = "http://192.168.4.58:8090",
-        limit: int = 150,
+        limit: int = 250,
         min_vote_count: int = 1_000,
     ) -> None:
         self.tmdb = tmdb
